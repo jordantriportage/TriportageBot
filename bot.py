@@ -1,6 +1,6 @@
 import re
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, CallbackQueryHandler
 
 # === CONFIGURATION ===
 TOKEN = "8075326221:AAGUWWMNUdvww4-TILy54R8zyZzz--Pvgxc"
@@ -8,8 +8,8 @@ ADMIN_IDS = [8493969803]  # Votre ID
 GROUPE_ID = -5156847371  # ID du groupe
 
 # === FONCTION START ===
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
+def start(update: Update, context: CallbackContext):
+    update.message.reply_text(
         "✅ Bot opérationnel !\n\n"
         "Envoyez une annonce au format :\n"
         "TITRE : ...\n"
@@ -22,58 +22,68 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 # === TRAITEMENT DES ANNONCES ===
-async def traiter_annonce(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def traiter_annonce(update: Update, context: CallbackContext):
     # Vérification admin
     if update.effective_user.id not in ADMIN_IDS:
-        await update.message.reply_text("❌ Accès refusé.")
+        update.message.reply_text("❌ Accès refusé.")
         return
 
     texte = update.message.text
-    
+
     # Extraction simple
     titre = re.search(r"TITRE\s*:\s*(.+)", texte, re.IGNORECASE)
     organisme = re.search(r"ORGANISME\s*:\s*(.+)", texte, re.IGNORECASE)
     date = re.search(r"DATE LIMITE\s*:\s*(.+)", texte, re.IGNORECASE)
+    lieu = re.search(r"LIEU\s*:\s*(.+)", texte, re.IGNORECASE)
+    reference = re.search(r"RÉFÉRENCE\s*:\s*(.+)", texte, re.IGNORECASE)
+    description = re.search(r"DESCRIPTION\s*:\s*(.+)", texte, re.IGNORECASE | re.DOTALL)
     lien = re.search(r"LIEN\s*:\s*(.+)", texte, re.IGNORECASE)
-    
+
     # Construction message
     message = f"📢 NOUVEL APPEL D'OFFRES\n\n"
-    message += f"📌 Titre : {titre.group(1) if titre else 'Non spécifié'}\n"
-    message += f"🏢 Organisme : {organisme.group(1) if organisme else 'Non spécifié'}\n"
-    message += f"📅 Date limite : {date.group(1) if date else 'Non spécifié'}\n"
-    message += f"🔗 Lien : {lien.group(1) if lien else 'Non spécifié'}"
-    
+    message += f"📌 Titre : {titre.group(1).strip() if titre else 'Non spécifié'}\n"
+    message += f"🏢 Organisme : {organisme.group(1).strip() if organisme else 'Non spécifié'}\n"
+    message += f"📅 Date limite : {date.group(1).strip() if date else 'Non spécifié'}\n"
+    message += f"📍 Lieu : {lieu.group(1).strip() if lieu else 'Non spécifié'}\n"
+    message += f"🔖 Référence : {reference.group(1).strip() if reference else 'Non spécifié'}\n\n"
+    message += f"📝 Description :\n{description.group(1).strip() if description else 'Non spécifiée'}\n\n"
+    message += f"🔗 Lien : {lien.group(1).strip() if lien else 'Non spécifié'}"
+
     # Bouton
     bouton = [[InlineKeyboardButton("✅ JE SUIS INTÉRESSÉ(E)", callback_data="interesse")]]
-    
+
     # Envoi au groupe
-    await context.bot.send_message(
+    context.bot.send_message(
         chat_id=GROUPE_ID,
         text=message,
         reply_markup=InlineKeyboardMarkup(bouton)
     )
-    
-    await update.message.reply_text("✅ Publié !")
+
+    update.message.reply_text("✅ Publié dans le groupe !")
 
 # === GESTION BOUTON ===
-async def gestion_bouton(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def gestion_bouton(update: Update, context: CallbackContext):
     query = update.callback_query
-    await query.answer()
+    query.answer()
     user = query.from_user
     for admin_id in ADMIN_IDS:
-        await context.bot.send_message(
+        context.bot.send_message(
             admin_id,
-            f"🔔 {user.full_name} (@{user.username}) est intéressé !"
+            f"🔔 {user.full_name} (@{user.username}) est intéressé par une offre !"
         )
 
 # === MAIN ===
 def main():
-    app = Application.builder().token(TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, traiter_annonce))
-    app.add_handler(CallbackQueryHandler(gestion_bouton, pattern="interesse"))
+    updater = Updater(TOKEN, use_context=True)
+    dp = updater.dispatcher
+
+    dp.add_handler(CommandHandler("start", start))
+    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, traiter_annonce))
+    dp.add_handler(CallbackQueryHandler(gestion_bouton, pattern="interesse"))
+
     print("✅ Bot démarré avec succès !")
-    app.run_polling()
+    updater.start_polling()
+    updater.idle()
 
 if __name__ == "__main__":
     main()
