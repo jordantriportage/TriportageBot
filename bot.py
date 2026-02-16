@@ -20,7 +20,7 @@ MANAGERS = {
 }
 
 WAITING_TEMPLATE = set()
-
+user_manager_choice = {}
 TEMPLATE_FIELDS = [
     "TITRE",
     "ORGANISME",
@@ -197,25 +197,37 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # 👉 Choix du manager (vient du PRIVÉ)
     elif query.data.startswith("manager|"):
-        parts = query.data.split("|")
+    parts = query.data.split("|")
 
-        msg_id = int(parts[1])
-        manager_id = int(parts[2])
-        manager_name = MANAGERS.get(manager_id, "Manager")
+    msg_id = int(parts[1])
+    manager_id = int(parts[2])
+    manager_name = MANAGERS.get(manager_id, "Manager")
 
-        title = context.bot_data.get(msg_id, {}).get("title", "opportunité")
+    key = (user.id, msg_id)
 
-        # 📩 Message au manager
-        await context.bot.send_message(
-            chat_id=manager_id,
-            text=f"📩 {user.full_name} est intéressé par : {title}",
-        )
-
-        # ✅ Confirmation au consultant
+    # 🔒 Anti spam manager
+    if key in user_manager_choice:
         await context.bot.send_message(
             chat_id=user.id,
-            text=f"✅ Le manager {manager_name} a été notifié."
+            text="⚠️ Tu as déjà sélectionné un manager pour cette opportunité."
         )
+        return
+
+    user_manager_choice[key] = manager_id
+
+    title = context.bot_data.get(msg_id, {}).get("title", "opportunité")
+
+    # 📩 Message au manager
+    await context.bot.send_message(
+        chat_id=manager_id,
+        text=f"📩 {user.full_name} est intéressé par : {title}",
+    )
+
+    # ✅ Confirmation au consultant
+    await context.bot.send_message(
+        chat_id=user.id,
+        text=f"✅ Le manager {manager_name} a été notifié."
+    )
 
 
 
@@ -230,6 +242,7 @@ app.add_handler(CommandHandler("groupid", get_group_id))
 
 if __name__ == "__main__":
     app.run_polling()
+
 
 
 
