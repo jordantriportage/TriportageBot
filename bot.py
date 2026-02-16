@@ -141,19 +141,19 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
 
     user = query.from_user
-    message = query.message
-    message_id = message.message_id
-
-    data = context.bot_data.get(message_id)
-
-    if not data:
-        return
-
-    if "interested_users" not in data:
-        data["interested_users"] = []
 
     # 👉 Clic sur "Je suis intéressé"
     if query.data == "interested":
+        message = query.message
+        message_id = message.message_id
+
+        data = context.bot_data.get(message_id)
+
+        if not data:
+            return
+
+        if "interested_users" not in data:
+            data["interested_users"] = []
 
         if user.id in data["interested_users"]:
             await context.bot.send_message(
@@ -195,7 +195,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=InlineKeyboardMarkup(manager_keyboard),
         )
 
-    # 👉 Choix du manager
+    # 👉 Choix du manager (vient du PRIVÉ)
     elif query.data.startswith("manager|"):
         parts = query.data.split("|")
 
@@ -230,6 +230,7 @@ app.add_handler(CommandHandler("groupid", get_group_id))
 
 if __name__ == "__main__":
     app.run_polling()
+
 
 
 
