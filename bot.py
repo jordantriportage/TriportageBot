@@ -29,6 +29,9 @@ TEMPLATE_FIELDS = [
     "LIEN",
 ]
 
+async def get_group_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat = update.effective_chat
+    await update.message.reply_text(f"Chat ID : {chat.id}")
 
 def parse_template(text: str):
     data = {}
@@ -174,6 +177,7 @@ app.add_handler(CallbackQueryHandler(button_handler))
 
 if __name__ == "__main__":
     app.run_polling()
+
 
 
 
