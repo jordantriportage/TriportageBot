@@ -9,7 +9,7 @@ from telegram.ext import (
     filters,
 )
 
-TOKEN = os.getenv("7244281986:AAF_ojoZVFL6fG41j01ckDcDsBGYJ592c6Q")
+TOKEN = "7244281986:AAF_ojoZVFL6fG41j01ckDcDsBGYJ592c6Q"
 
 GROUP_CHAT_ID = -5156847371  # 🔴 ID du groupe
 
@@ -174,3 +174,4 @@ app.add_handler(CallbackQueryHandler(button_handler))
 
 if __name__ == "__main__":
     app.run_polling()
+
