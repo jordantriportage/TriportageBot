@@ -15,7 +15,8 @@ GROUP_CHAT_ID = -1003774994419  # 🔴 ID du groupe
 
 MANAGERS = {
     8493969803: "Jordan DIOCHOT",
-    222222222: "Manager 2",
+    222222222: "Juan BERRIO",
+    333333333: "Houda EL BOUHDIDI",
 }
 
 WAITING_TEMPLATE = set()
@@ -229,6 +230,7 @@ app.add_handler(CommandHandler("groupid", get_group_id))
 
 if __name__ == "__main__":
     app.run_polling()
+
 
 
 
