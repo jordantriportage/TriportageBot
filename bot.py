@@ -197,13 +197,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # 👉 Choix du manager (vient du PRIVÉ)
     elif query.data.startswith("manager|"):
-    parts = query.data.split("|")
+        parts = query.data.split("|")
 
-    msg_id = int(parts[1])
-    manager_id = int(parts[2])
-    manager_name = MANAGERS.get(manager_id, "Manager")
+        msg_id = int(parts[1])
+        manager_id = int(parts[2])
+        manager_name = MANAGERS.get(manager_id, "Manager")
 
-    key = (user.id, msg_id)
+        key = (user.id, msg_id)
 
     # 🔒 Anti spam manager
     if key in user_manager_choice:
@@ -242,6 +242,7 @@ app.add_handler(CommandHandler("groupid", get_group_id))
 
 if __name__ == "__main__":
     app.run_polling()
+
 
 
 
