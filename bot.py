@@ -128,7 +128,8 @@ async def handle_template(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     context.bot_data[sent_message.message_id] = {
-        "title": data["TITRE"]
+    "title": data["TITRE"],
+    "interested_users": []
     }
 
     await update.message.reply_text("✅ Publié dans le groupe.")
@@ -228,6 +229,7 @@ app.add_handler(CommandHandler("groupid", get_group_id))
 
 if __name__ == "__main__":
     app.run_polling()
+
 
 
 
