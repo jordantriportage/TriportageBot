@@ -163,9 +163,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text=f"📩 {user.full_name} est intéressé par : {title}",
         )
 
-        await query.message.reply_text(
-            "✅ Le manager a été notifié en privé."
-        )
+        await context.bot.send_message(
+    chat_id=user.id,
+    text="✅ Le manager a été notifié en privé."
+)
 
 
 app = ApplicationBuilder().token(TOKEN).build()
@@ -179,6 +180,7 @@ app.add_handler(CommandHandler("groupid", get_group_id))
 
 if __name__ == "__main__":
     app.run_polling()
+
 
 
 
