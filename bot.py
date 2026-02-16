@@ -174,9 +174,12 @@ app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("new", new_opportunity))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_template))
 app.add_handler(CallbackQueryHandler(button_handler))
+app.add_handler(CommandHandler("groupid", get_group_id))
+
 
 if __name__ == "__main__":
     app.run_polling()
+
 
 
 
