@@ -186,7 +186,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # 🎯 Boutons choix manager en privé
         manager_keyboard = [
             [
-                InlineKeyboardButton(name, callback_data=f"manager_{message_id}_{mid}")
+                InlineKeyboardButton(name, callback_data=f"manager|{message_id}|{mid}")
                 for mid, name in MANAGERS.items()
             ]
         ]
@@ -230,6 +230,7 @@ app.add_handler(CommandHandler("groupid", get_group_id))
 
 if __name__ == "__main__":
     app.run_polling()
+
 
 
 
