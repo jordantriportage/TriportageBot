@@ -203,34 +203,35 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         manager_id = int(parts[2])
         manager_name = MANAGERS.get(manager_id, "Manager")
 
-        key = (user.id, msg_id)
+        key = f"{user.id}_{msg_id}"
 
-        # 🔒 Anti spam manager
-        if key in user_manager_choice:
+        if "manager_choices" not in context.bot_data:
+        context.bot_data["manager_choices"] = {}
+
+        if key in context.bot_data["manager_choices"]:
             await context.bot.send_message(
                 chat_id=user.id,
                 text="⚠️ Tu as déjà sélectionné un manager pour cette opportunité."
             )
             return
+            
+    # 🔒 On enregistre le choix
+    context.bot_data["manager_choices"][key] = manager_id
 
-        user_manager_choice[key] = manager_id
+    title = context.bot_data.get(msg_id, {}).get("title", "opportunité")
 
-        title = context.bot_data.get(msg_id, {}).get("title", "opportunité")
+     # 📩 Message au manager
+    await context.bot.send_message(
+        chat_id=manager_id,
+        text=f"📩 {user.full_name} est intéressé par : {title}",
+    )
 
-        # 📩 Message au manager
-        await context.bot.send_message(
-            chat_id=manager_id,
-            text=f"📩 {user.full_name} est intéressé par : {title}",
-        )
-
-        # ✅ Confirmation au consultant
-        await context.bot.send_message(
-            chat_id=user.id,
-            text=f"✅ Le manager {manager_name} a été notifié."
-        )
-
-
-
+    # ✅ Confirmation consultant
+    await context.bot.send_message(
+        chat_id=user.id,
+        text=f"✅ Le manager {manager_name} a été notifié."
+    )
+    
 
 app = ApplicationBuilder().token(TOKEN).build()
 
@@ -243,6 +244,7 @@ app.add_handler(CommandHandler("groupid", get_group_id))
 
 if __name__ == "__main__":
     app.run_polling()
+
 
 
 
