@@ -11,7 +11,7 @@ from telegram.ext import (
 
 TOKEN = "7244281986:AAHyQE7rMPElsW77a1LuSrti9ROVXlbCY_M"
 
-GROUP_CHAT_ID = -1005156847371  # 🔴 ID du groupe
+GROUP_CHAT_ID = -1003774994419  # 🔴 ID du groupe
 
 MANAGERS = {
     8493969803: "Jordan DIOCHOT",
@@ -179,6 +179,7 @@ app.add_handler(CommandHandler("groupid", get_group_id))
 
 if __name__ == "__main__":
     app.run_polling()
+
 
 
 
