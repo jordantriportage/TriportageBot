@@ -149,7 +149,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not data:
         return
 
-    # Initialisation liste intéressés
     if "interested_users" not in data:
         data["interested_users"] = []
 
@@ -167,7 +166,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         count = len(data["interested_users"])
 
-        # 🔄 Mettre à jour le bouton du groupe avec le compteur
         keyboard = [
             [InlineKeyboardButton(f"✅ Je suis intéressé ({count})", callback_data="interested")]
         ]
@@ -176,7 +174,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
-        # 📩 Envoyer le détail en privé
+        # 📩 Envoi du détail en privé
         await context.bot.send_message(
             chat_id=user.id,
             text=message.text,
@@ -197,15 +195,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=InlineKeyboardMarkup(manager_keyboard),
         )
 
-    # 👉 Choix du manager en privé
+    # 👉 Choix du manager
     elif query.data.startswith("manager|"):
-        data = query.data.split("|")
-        manager = data[1]
-        user_id = query.from_user.id
+        parts = query.data.split("|")
 
-        context.bot.send_message(
-            chat_id=user_id,
-            text=f"Parfait 👍\nTu es en contact avec : {manager}\nLe manager a été notifié.")
+        msg_id = int(parts[1])
+        manager_id = int(parts[2])
+        manager_name = MANAGERS.get(manager_id, "Manager")
 
         title = context.bot_data.get(msg_id, {}).get("title", "opportunité")
 
@@ -215,11 +211,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text=f"📩 {user.full_name} est intéressé par : {title}",
         )
 
-        # ✅ Confirmation au consultant (privé)
+        # ✅ Confirmation au consultant
         await context.bot.send_message(
             chat_id=user.id,
-            text="✅ Le manager a été notifié en privé."
+            text=f"✅ Le manager {manager_name} a été notifié."
         )
+
 
 
 app = ApplicationBuilder().token(TOKEN).build()
@@ -233,6 +230,7 @@ app.add_handler(CommandHandler("groupid", get_group_id))
 
 if __name__ == "__main__":
     app.run_polling()
+
 
 
 
