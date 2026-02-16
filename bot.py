@@ -9,7 +9,7 @@ from telegram.ext import (
     filters,
 )
 
-TOKEN = "TON_TOKEN_ICI"
+TOKEN = "7244281986:AAHyQE7rMPElsW77a1LuSrti9ROVXlbCY_M"
 GROUP_CHAT_ID = -1003774994419
 
 MANAGERS = {
@@ -21,9 +21,15 @@ MANAGERS = {
 WAITING_AO = set()
 
 # =========================
-# 🔎 ANALYSE INTELLIGENTE AO
+# 🔐 MARKDOWN SAFE
 # =========================
+def escape_markdown(text):
+    escape_chars = r"_*[]()~`>#+-=|{}.!"
+    return re.sub(f"([{re.escape(escape_chars)}])", r"\\\1", text)
 
+# =========================
+# 🔎 EXTRACTION DATA
+# =========================
 def extract_tjm(text):
     match = re.search(r"(\d{3,4})\s?€?\s?/?\s?(j|jour)", text, re.IGNORECASE)
     return match.group(1) + "€" if match else "Non précisé"
@@ -33,14 +39,14 @@ def extract_duration(text):
     return match.group(0) if match else "Non précisée"
 
 def extract_remote(text):
-    text = text.lower()
-    if "100%" in text and "remote" in text:
+    t = text.lower()
+    if "100%" in t and "remote" in t:
         return "100% remote"
-    if "remote" in text:
+    if "remote" in t:
         return "Remote"
-    if "hybride" in text:
+    if "hybride" in t:
         return "Hybride"
-    if "présentiel" in text or "onsite" in text:
+    if "présentiel" in t or "onsite" in t:
         return "Présentiel"
     return "Non précisé"
 
@@ -76,7 +82,7 @@ def build_ao_message(raw_text):
     duration = extract_duration(raw_text)
     remote = extract_remote(raw_text)
     tags = extract_tags(raw_text)
-    summary = smart_summary(raw_text)
+    summary = escape_markdown(smart_summary(raw_text))
 
     return (
         f"📢 *Nouvelle opportunité*\n\n"
@@ -90,7 +96,6 @@ def build_ao_message(raw_text):
 # =========================
 # 🧠 BOT LOGIC
 # =========================
-
 def is_private(update: Update):
     return update.effective_chat.type == "private"
 
@@ -130,12 +135,11 @@ async def handle_ao(update: Update, context: ContextTypes.DEFAULT_TYPE):
     sent_message = await context.bot.send_message(
         chat_id=GROUP_CHAT_ID,
         text=message_text,
-        parse_mode="Markdown",
+        parse_mode="MarkdownV2",
         reply_markup=InlineKeyboardMarkup(keyboard),
     )
 
     context.bot_data[sent_message.message_id] = {
-        "title": "AO",
         "interested_users": [],
         "manager_map": {}
     }
@@ -145,15 +149,12 @@ async def handle_ao(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # =========================
 # 🔘 BOUTONS
 # =========================
-
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     user = query.from_user
 
-    # =====================
-    # CLIC INTERESSE
-    # =====================
+    # 👉 CLIC INTERESSE
     if query.data == "interested":
         message = query.message
         message_id = message.message_id
@@ -176,7 +177,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
 
-        await context.bot.send_message(chat_id=user.id, text=message.text, parse_mode="Markdown")
+        await context.bot.send_message(
+            chat_id=user.id,
+            text=message.text,
+            parse_mode="MarkdownV2"
+        )
 
         manager_keyboard = [
             [InlineKeyboardButton(name, callback_data=f"manager|{message_id}|{mid}")]
@@ -189,9 +194,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=InlineKeyboardMarkup(manager_keyboard),
         )
 
-    # =====================
-    # CHOIX MANAGER
-    # =====================
+    # 👉 CHOIX MANAGER
     elif query.data.startswith("manager|"):
         parts = query.data.split("|")
         msg_id = int(parts[1])
@@ -213,15 +216,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         data["manager_map"][key] = manager_id
 
-        # 📩 Liste des intéressés pour ce manager
-        interested_names = []
-        for uid, mid in data["manager_map"].items():
-            if mid == manager_id:
-                interested_names.append(uid.split("_")[0])
+        # 👥 Compteur pour ce manager
+        count = sum(1 for m in data["manager_map"].values() if m == manager_id)
 
         await context.bot.send_message(
             chat_id=manager_id,
-            text=f"📩 {user.full_name} est intéressé par l’AO.\n\n👥 Intéressés pour toi : {len(interested_names)}"
+            text=f"📩 {user.full_name} est intéressé par l’AO.\n👥 Intéressés pour toi : {count}"
         )
 
         await context.bot.send_message(
@@ -232,7 +232,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # =========================
 # 🚀 RUN
 # =========================
-
 app = ApplicationBuilder().token(TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
