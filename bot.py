@@ -206,7 +206,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         key = f"{user.id}_{msg_id}"
 
         if "manager_choices" not in context.bot_data:
-        context.bot_data["manager_choices"] = {}
+            context.bot_data["manager_choices"] = {}
 
         if key in context.bot_data["manager_choices"]:
             await context.bot.send_message(
@@ -244,6 +244,7 @@ app.add_handler(CommandHandler("groupid", get_group_id))
 
 if __name__ == "__main__":
     app.run_polling()
+
 
 
 
