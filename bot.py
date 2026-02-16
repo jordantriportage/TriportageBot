@@ -199,10 +199,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # 👉 Choix du manager en privé
     elif query.data.startswith("manager|"):
+        data = query.data.split("|")
+        manager = data[1]
+        user_id = query.from_user.id
 
-    _, msg_id, manager_id = query.data.split("|")
-    msg_id = int(msg_id)
-    manager_id = int(manager_id)
+        context.bot.send_message(
+            chat_id=user_id,
+            text=f"Parfait 👍\nTu es en contact avec : {manager}\nLe manager a été notifié.")
 
         title = context.bot_data.get(msg_id, {}).get("title", "opportunité")
 
@@ -230,6 +233,7 @@ app.add_handler(CommandHandler("groupid", get_group_id))
 
 if __name__ == "__main__":
     app.run_polling()
+
 
 
 
