@@ -139,34 +139,82 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
 
     user = query.from_user
-    message_id = query.message.message_id
+    message = query.message
+    message_id = message.message_id
 
+    data = context.bot_data.get(message_id)
+
+    if not data:
+        return
+
+    # Initialisation liste intéressés
+    if "interested_users" not in data:
+        data["interested_users"] = []
+
+    # 👉 Clic sur "Je suis intéressé"
     if query.data == "interested":
+
+        if user.id in data["interested_users"]:
+            await context.bot.send_message(
+                chat_id=user.id,
+                text="⚠️ Tu as déjà indiqué ton intérêt pour cette opportunité."
+            )
+            return
+
+        data["interested_users"].append(user.id)
+
+        count = len(data["interested_users"])
+
+        # 🔄 Mettre à jour le bouton du groupe avec le compteur
         keyboard = [
+            [InlineKeyboardButton(f"✅ Je suis intéressé ({count})", callback_data="interested")]
+        ]
+
+        await message.edit_reply_markup(
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+        # 📩 Envoyer le détail en privé
+        await context.bot.send_message(
+            chat_id=user.id,
+            text=message.text,
+            parse_mode="Markdown"
+        )
+
+        # 🎯 Boutons choix manager en privé
+        manager_keyboard = [
             [
-                InlineKeyboardButton(name, callback_data=f"manager_{mid}")
+                InlineKeyboardButton(name, callback_data=f"manager_{message_id}_{mid}")
                 for mid, name in MANAGERS.items()
             ]
         ]
 
-        await query.message.reply_text(
-            "Choisis ton manager :",
-            reply_markup=InlineKeyboardMarkup(keyboard),
+        await context.bot.send_message(
+            chat_id=user.id,
+            text="Avec quel manager es-tu en contact ?",
+            reply_markup=InlineKeyboardMarkup(manager_keyboard),
         )
 
+    # 👉 Choix du manager en privé
     elif query.data.startswith("manager_"):
-        manager_id = int(query.data.split("_")[1])
-        title = context.bot_data.get(message_id, {}).get("title", "opportunité")
 
+        _, msg_id, manager_id = query.data.split("_")
+        msg_id = int(msg_id)
+        manager_id = int(manager_id)
+
+        title = context.bot_data.get(msg_id, {}).get("title", "opportunité")
+
+        # 📩 Message au manager
         await context.bot.send_message(
             chat_id=manager_id,
             text=f"📩 {user.full_name} est intéressé par : {title}",
         )
 
+        # ✅ Confirmation au consultant (privé)
         await context.bot.send_message(
-    chat_id=user.id,
-    text="✅ Le manager a été notifié en privé."
-)
+            chat_id=user.id,
+            text="✅ Le manager a été notifié en privé."
+        )
 
 
 app = ApplicationBuilder().token(TOKEN).build()
@@ -180,6 +228,7 @@ app.add_handler(CommandHandler("groupid", get_group_id))
 
 if __name__ == "__main__":
     app.run_polling()
+
 
 
 
