@@ -77,9 +77,36 @@ def extract_tags(text):
 
     return " ".join(tags)
 
-def smart_summary(text, max_sentences=3):
-    sentences = re.split(r'(?<=[.!?]) +', text)
-    return " ".join(sentences[:max_sentences])
+def smart_summary(text, max_lines=5):
+    lines = text.split("\n")
+
+    clean_lines = []
+
+    for line in lines:
+        l = line.strip()
+
+        # ❌ supprimer blabla RH / marketing
+        if any(x in l.lower() for x in [
+            "café", "excellente semaine", "je suis preneuse",
+            "envie de relever", "croyez moi", "💪", "☕", "🔥"
+        ]):
+            continue
+
+        # garder seulement les lignes utiles
+        if any(x in l.lower() for x in [
+            "mission", "profil", "compétence", "durée", "tjm",
+            "démarrage", "localisation", "lieu", "remote",
+            "adobe", "imagino", "crm", "data", "cloud"
+        ]):
+            clean_lines.append(l)
+
+    # fallback si rien détecté
+    if not clean_lines:
+        clean_lines = lines
+
+    summary = "\n".join(clean_lines[:max_lines])
+
+    return summary
 
 def build_ao_message(raw_text):
     tjm = extract_tjm(raw_text)
@@ -232,4 +259,5 @@ app.add_handler(CallbackQueryHandler(button_handler))
 
 if __name__ == "__main__":
     app.run_polling()
+
 
