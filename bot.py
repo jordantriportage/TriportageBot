@@ -18,8 +18,6 @@ MANAGERS = {
     333333333: "Houda EL BOUHDIDI",
 }
 
-WAITING_AO = set()
-
 # =========================
 # 🔐 MARKDOWN SAFE
 # =========================
@@ -104,37 +102,20 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     await update.message.reply_text("Bot AO opérationnel ✅")
 
-async def new_ao(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# 📩 Réception directe d’un AO par un manager
+async def handle_ao(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_private(update):
         return
 
     user_id = update.effective_user.id
 
     if user_id not in MANAGERS:
-        await update.message.reply_text("❌ Seuls les managers peuvent publier.")
+        await update.message.reply_text("❌ Seuls les managers peuvent publier des AO.")
         return
 
-    WAITING_AO.add(user_id)
-    await update.message.reply_text("Envoie-moi l’appel d’offre brut ✍️")
+    raw_text = update.message.text
 
-async def handle_ao(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_private(update):
-        print("❌ Message reçu hors privé")
-        return
-
-    user_id = update.effective_user.id
-    print("👤 USER:", user_id)
-    print("🧠 WAITING_AO:", WAITING_AO)
-
-    if user_id not in WAITING_AO:
-        await update.message.reply_text(
-            "⚠️ Tu dois d'abord envoyer /new avant de coller l’AO."
-        )
-        return
-
-    WAITING_AO.remove(user_id)
-
-    message_text = build_ao_message(update.message.text)
+    message_text = build_ao_message(raw_text)
 
     keyboard = [[InlineKeyboardButton("✅ Je suis intéressé", callback_data="interested")]]
 
@@ -222,7 +203,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         data["manager_map"][key] = manager_id
 
-        # 👥 Compteur pour ce manager
         count = sum(1 for m in data["manager_map"].values() if m == manager_id)
 
         await context.bot.send_message(
@@ -241,10 +221,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 app = ApplicationBuilder().token(TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
-app.add_handler(CommandHandler("new", new_ao))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_ao))
 app.add_handler(CallbackQueryHandler(button_handler))
 
 if __name__ == "__main__":
     app.run_polling()
-
