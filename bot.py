@@ -1,6 +1,7 @@
 import re
 import os
 import uuid
+import json
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 from openai import OpenAI
@@ -29,114 +30,66 @@ WAITING_AO = set()
 
 def escape_md(text: str):
     escape_chars = r"_*[]()~`>#+-=|{}.!#"
-    return re.sub(f"([{re.escape(escape_chars)}])", r"\\\1", text)
+    return re.sub(f"([{re.escape(escape_chars)}])", r"\\\1", str(text))
 
 # =========================
-# 🔎 EXTRACTIONS
+# 🧠 OPENAI ANALYSE UNIQUE
 # =========================
 
-def extract_tjm(text):
-    match = re.search(r"(\d{3,4})\s?€?\s?(max|maximum|min|minimum)?", text, re.IGNORECASE)
-    if match:
-        value = match.group(1)
-        suffix = match.group(2)
-        if suffix:
-            return f"{value}€ {suffix}"
-        return f"{value}€"
-    return "Non précisé"
-
-def extract_duration(text):
-    match = re.search(r"(minimum|min)?\s?(\d+)\s?(mois|semaines)", text, re.IGNORECASE)
-    if match:
-        prefix = match.group(1)
-        value = match.group(2)
-        unit = match.group(3)
-        if prefix:
-            return f"{value} {unit} minimum"
-        return f"{value} {unit}"
-    return "Non précisée"
-
-def extract_location(text):
-    cities = ["lille", "paris", "idf", "lyon", "marseille", "toulouse", "nantes", "bordeaux"]
-    t = text.lower()
-    for city in cities:
-        if city in t:
-            return city.upper()
-    return "Non précisée"
-
-def extract_remote(text):
-    t = text.lower()
-    if "100%" in t and "remote" in t:
-        return "100% remote"
-    if "remote" in t:
-        return "Remote"
-    if "hybride" in t:
-        return "Hybride"
-    if "présentiel" in t:
-        return "Présentiel"
-    return "Non précisé"
-
-def extract_start(text):
-    if "asap" in text.lower():
-        return "ASAP"
-    return "Non précisé"
-
-def extract_seniority(text):
-    t = text.lower()
-    if "senior" in t:
-        return "Senior"
-    if "lead" in t:
-        return "Lead"
-    match = re.search(r"(\d\+?)\s?ans", t)
-    if match:
-        return match.group(1) + " ans"
-    return "Non précisée"
-
-def extract_tags(text):
-    tags = []
-    t = text.lower()
-
-    if any(x in t for x in ["crm", "adobe campaign", "salesforce"]):
-        tags.append("#CRM")
-    if any(x in t for x in ["data", "etl", "power bi"]):
-        tags.append("#Data")
-    if any(x in t for x in ["aws", "azure", "gcp", "cloud"]):
-        tags.append("#Cloud")
-    if any(x in t for x in ["cyber", "ssi", "soc"]):
-        tags.append("#Cyber")
-    if any(x in t for x in ["sap"]):
-        tags.append("#SAP")
-
-    return " ".join(tags) if tags else "#IT"
-
-# =========================
-# 🧠 OPENAI SYNTHÈSE
-# =========================
-
-async def summarize_ao(raw_text):
+async def analyze_ao_with_ai(raw_text):
 
     prompt = f"""
 Tu es un recruteur IT.
 
-Résume cette mission en 2 phrases maximum.
-Supprime le blabla marketing.
-Garde uniquement :
-- rôle
-- techno
-- contexte projet
-- responsabilité principale
+Analyse cette mission et retourne un JSON STRICT avec ces champs :
+
+summary : résumé en 2 phrases max (role + techno + contexte)
+tjm : TJM ou "Non précisé"
+duration : durée ou "Non précisée"
+location : ville ou "Non précisée"
+remote : "100% remote", "Remote", "Hybride", "Présentiel" ou "Non précisé"
+seniority : niveau ou années d'expérience ou "Non précisée"
+start : date de démarrage ou "ASAP" ou "Non précisé"
+tags : liste de 2 à 4 hashtags sans accents (ex: ["#Data", "#AWS"])
 
 Mission :
 {raw_text}
 """
 
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.2,
-    )
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2,
+            response_format={"type": "json_object"},
+        )
 
-    return response.choices[0].message.content.strip()
+        data = json.loads(response.choices[0].message.content)
+
+        return {
+            "summary": data.get("summary", "Non précisé"),
+            "tjm": data.get("tjm", "Non précisé"),
+            "duration": data.get("duration", "Non précisée"),
+            "location": data.get("location", "Non précisée"),
+            "remote": data.get("remote", "Non précisé"),
+            "seniority": data.get("seniority", "Non précisée"),
+            "start": data.get("start", "Non précisé"),
+            "tags": " ".join(data.get("tags", ["#IT"]))
+        }
+
+    except Exception as e:
+        print("Erreur analyse AI :", e)
+
+        return {
+            "summary": raw_text[:150],
+            "tjm": "Non précisé",
+            "duration": "Non précisée",
+            "location": "Non précisée",
+            "remote": "Non précisé",
+            "seniority": "Non précisée",
+            "start": "Non précisé",
+            "tags": "#IT"
+        }
 
 # =========================
 # 🧱 BUILD MESSAGE
@@ -144,28 +97,19 @@ Mission :
 
 async def build_ao_message(raw_text):
 
-    summary = await summarize_ao(raw_text)
-
-    tjm = extract_tjm(raw_text)
-    duration = extract_duration(raw_text)
-    location = extract_location(raw_text)
-    remote = extract_remote(raw_text)
-    start = extract_start(raw_text)
-    seniority = extract_seniority(raw_text)
-    tags = extract_tags(raw_text)
-
+    data = await analyze_ao_with_ai(raw_text)
     reference = str(uuid.uuid4())[:8].upper()
 
     message = (
         f"📢 *Nouvelle opportunité* \\- Ref : *{reference}*\n\n"
-        f"📝 *Mission* : {escape_md(summary)}\n"
-        f"📍 *Localisation* : {location}\n"
-        f"💰 *TJM* : {tjm}\n"
-        f"⏳ *Durée* : {duration}\n"
-        f"🚀 *Démarrage* : {start}\n"
-        f"🎯 *Séniorité* : {seniority}\n"
-        f"🏠 *Remote* : {remote}\n\n"
-        f"{escape_md(tags)}\n\n"
+        f"📝 *Mission* : {escape_md(data['summary'])}\n"
+        f"📍 *Localisation* : {data['location']}\n"
+        f"💰 *TJM* : {data['tjm']}\n"
+        f"⏳ *Durée* : {data['duration']}\n"
+        f"🚀 *Démarrage* : {data['start']}\n"
+        f"🎯 *Séniorité* : {data['seniority']}\n"
+        f"🏠 *Remote* : {data['remote']}\n\n"
+        f"{escape_md(data['tags'])}\n\n"
         f"👀 *Intéressés* : 0"
     )
 
@@ -190,6 +134,9 @@ async def new_ao(update: Update, context: ContextTypes.DEFAULT_TYPE):
     WAITING_AO.add(update.effective_user.id)
     await update.message.reply_text("Envoie-moi l’AO brut ✍️")
 
+# =========================
+# 📩 RECEPTION AO
+# =========================
 
 async def handle_ao(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
@@ -230,9 +177,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     user = query.from_user
 
-    # =========================
-    # 👍 CLICK "JE SUIS INTERESSE"
-    # =========================
     if query.data == "interested":
 
         message = query.message
@@ -249,7 +193,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         data["interested_users"].append(user.id)
         count = len(data["interested_users"])
 
-        # 🔄 update compteur groupe
         new_text = re.sub(r"\*Intéressés\* : \d+", f"*Intéressés* : {count}", data["text"])
 
         keyboard = [[InlineKeyboardButton(f"✅ Je suis intéressé ({count})", callback_data="interested")]]
@@ -260,7 +203,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
-        # 👔 choix manager en privé
         manager_keyboard = [
             [InlineKeyboardButton(name, callback_data=f"manager|{message_id}|{mid}")]
             for mid, name in MANAGERS.items()
@@ -272,9 +214,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=InlineKeyboardMarkup(manager_keyboard),
         )
 
-    # =========================
-    # 👔 SELECTION MANAGER
-    # =========================
     elif query.data.startswith("manager|"):
 
         parts = query.data.split("|")
@@ -287,17 +226,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         key = f"{user.id}_{msg_id}"
 
-        # 🔒 anti-spam manager
         if key in data["manager_map"]:
             await context.bot.send_message(user.id, "⚠️ Déjà envoyé à ce manager.")
             return
 
         data["manager_map"][key] = manager_id
 
-        # 👥 nombre pour CE manager
         count_for_manager = sum(1 for m in data["manager_map"].values() if m == manager_id)
 
-        # 📩 notif manager
         await context.bot.send_message(
             chat_id=manager_id,
             text=(
@@ -309,7 +245,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="MarkdownV2"
         )
 
-        # ✅ confirmation consultant
         await context.bot.send_message(
             chat_id=user.id,
             text="✅ Le manager a été notifié."
@@ -327,11 +262,3 @@ app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_ao))
 app.add_handler(CallbackQueryHandler(button_handler))
 
 app.run_polling()
-
-
-
-
-
-
-
-
