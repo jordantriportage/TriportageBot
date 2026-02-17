@@ -229,11 +229,17 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     user = query.from_user
 
+    # =========================
+    # 👍 CLICK "JE SUIS INTERESSE"
+    # =========================
     if query.data == "interested":
 
         message = query.message
         message_id = message.message_id
         data = context.bot_data.get(message_id)
+
+        if not data:
+            return
 
         if user.id in data["interested_users"]:
             await context.bot.send_message(user.id, "⚠️ Déjà indiqué.")
@@ -242,6 +248,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         data["interested_users"].append(user.id)
         count = len(data["interested_users"])
 
+        # 🔄 update compteur groupe
         new_text = re.sub(r"\*Intéressés\* : \d+", f"*Intéressés* : {count}", data["text"])
 
         keyboard = [[InlineKeyboardButton(f"✅ Je suis intéressé ({count})", callback_data="interested")]]
@@ -252,6 +259,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
+        # 👔 choix manager en privé
         manager_keyboard = [
             [InlineKeyboardButton(name, callback_data=f"manager|{message_id}|{mid}")]
             for mid, name in MANAGERS.items()
@@ -259,11 +267,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await context.bot.send_message(
             chat_id=user.id,
-            text=f"Avec quel manager es-tu en contact ?\\nRef mission : {data['reference']}",
+            text=f"📌 Référence : {data['reference']}\nAvec quel manager es-tu en contact ?",
             reply_markup=InlineKeyboardMarkup(manager_keyboard),
-            parse_mode="MarkdownV2"
         )
 
+    # =========================
+    # 👔 SELECTION MANAGER
+    # =========================
     elif query.data.startswith("manager|"):
 
         parts = query.data.split("|")
@@ -271,24 +281,37 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         manager_id = int(parts[2])
 
         data = context.bot_data.get(msg_id)
+        if not data:
+            return
+
         key = f"{user.id}_{msg_id}"
 
+        # 🔒 anti-spam manager
         if key in data["manager_map"]:
             await context.bot.send_message(user.id, "⚠️ Déjà envoyé à ce manager.")
             return
 
         data["manager_map"][key] = manager_id
 
+        # 👥 nombre pour CE manager
+        count_for_manager = sum(1 for m in data["manager_map"].values() if m == manager_id)
+
+        # 📩 notif manager
         await context.bot.send_message(
             chat_id=manager_id,
-            text=f"📩 {user.full_name} est intéressé par la mission \\- Ref : {data['reference']}",
+            text=(
+                f"📩 *Nouveau consultant intéressé*\n\n"
+                f"👤 Nom : {escape_md(user.full_name)}\n"
+                f"📌 Référence : {data['reference']}\n"
+                f"👥 Intéressés pour toi : {count_for_manager}"
+            ),
             parse_mode="MarkdownV2"
         )
 
+        # ✅ confirmation consultant
         await context.bot.send_message(
             chat_id=user.id,
-            text=f"✅ Le manager a été notifié \\- Ref mission : {data['reference']}",
-            parse_mode="MarkdownV2"
+            text="✅ Le manager a été notifié."
         )
 
 # =========================
@@ -303,6 +326,7 @@ app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_ao))
 app.add_handler(CallbackQueryHandler(button_handler))
 
 app.run_polling()
+
 
 
 
