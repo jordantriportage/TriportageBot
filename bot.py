@@ -1,5 +1,6 @@
 import re
 import os
+import uuid
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 from openai import OpenAI
@@ -153,8 +154,10 @@ async def build_ao_message(raw_text):
     seniority = extract_seniority(raw_text)
     tags = extract_tags(raw_text)
 
-    return (
-        f"📢 *Nouvelle opportunité*\n\n"
+    reference = str(uuid.uuid4())[:8].upper()
+
+    message = (
+        f"📢 *Nouvelle opportunité* \\- Ref : *{reference}*\n\n"
         f"📝 *Mission* : {escape_md(summary)}\n"
         f"📍 *Localisation* : {location}\n"
         f"💰 *TJM* : {tjm}\n"
@@ -165,6 +168,8 @@ async def build_ao_message(raw_text):
         f"{escape_md(tags)}\n\n"
         f"👀 *Intéressés* : 0"
     )
+
+    return message, reference
 
 # =========================
 # 🤖 COMMANDES
@@ -194,7 +199,7 @@ async def handle_ao(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     WAITING_AO.remove(user_id)
 
-    message_text = await build_ao_message(update.message.text)
+    message_text, reference = await build_ao_message(update.message.text)
 
     keyboard = [[InlineKeyboardButton("✅ Je suis intéressé", callback_data="interested")]]
 
@@ -208,10 +213,11 @@ async def handle_ao(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.bot_data[sent_message.message_id] = {
         "interested_users": [],
         "manager_map": {},
-        "text": message_text
+        "text": message_text,
+        "reference": reference
     }
 
-    await update.message.reply_text("✅ AO publiée.")
+    await update.message.reply_text(f"✅ AO publiée \\- Ref : {reference}")
 
 # =========================
 # 🔘 BOUTONS
@@ -253,8 +259,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await context.bot.send_message(
             chat_id=user.id,
-            text="Avec quel manager es-tu en contact ?",
+            text=f"Avec quel manager es-tu en contact ?\\nRef mission : {data['reference']}",
             reply_markup=InlineKeyboardMarkup(manager_keyboard),
+            parse_mode="MarkdownV2"
         )
 
     elif query.data.startswith("manager|"):
@@ -274,12 +281,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await context.bot.send_message(
             chat_id=manager_id,
-            text=f"📩 {user.full_name} est intéressé par une mission."
+            text=f"📩 {user.full_name} est intéressé par la mission \\- Ref : {data['reference']}",
+            parse_mode="MarkdownV2"
         )
 
         await context.bot.send_message(
             chat_id=user.id,
-            text="✅ Le manager a été notifié."
+            text=f"✅ Le manager a été notifié \\- Ref mission : {data['reference']}",
+            parse_mode="MarkdownV2"
         )
 
 # =========================
@@ -294,5 +303,6 @@ app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_ao))
 app.add_handler(CallbackQueryHandler(button_handler))
 
 app.run_polling()
+
 
 
