@@ -1,13 +1,18 @@
 import re
+import os
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
+from openai import OpenAI
 
 # =========================
 # ⚙️ CONFIG
 # =========================
 
-TOKEN = "7244281986:AAHyQE7rMPElsW77a1LuSrti9ROVXlbCY_M"
-GROUP_CHAT_ID = -1003774994419
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+GROUP_CHAT_ID = int(os.getenv("GROUP_CHAT_ID"))
+
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 MANAGERS = {
     8493969803: "Jordan DIOCHOT",
@@ -18,10 +23,11 @@ MANAGERS = {
 WAITING_AO = set()
 
 # =========================
-# 🔐 MARKDOWN V2 SAFE
+# 🔐 MARKDOWN SAFE
 # =========================
+
 def escape_md(text: str):
-    escape_chars = r"_*[]()~`>#+-=|{}.!"
+    escape_chars = r"_*[]()~`>#+-=|{}.!#"
     return re.sub(f"([{re.escape(escape_chars)}])", r"\\\1", text)
 
 # =========================
@@ -31,11 +37,11 @@ def escape_md(text: str):
 def extract_tjm(text):
     match = re.search(r"(\d{3,4})\s?€?\s?(max|maximum|min|minimum)?", text, re.IGNORECASE)
     if match:
-        tjm = match.group(1)
+        value = match.group(1)
         suffix = match.group(2)
         if suffix:
-            return f"{tjm}€ {suffix}"
-        return f"{tjm}€"
+            return f"{value}€ {suffix}"
+        return f"{value}€"
     return "Non précisé"
 
 def extract_duration(text):
@@ -65,15 +71,14 @@ def extract_remote(text):
         return "Remote"
     if "hybride" in t:
         return "Hybride"
-    if "présentiel" in t or "onsite" in t:
+    if "présentiel" in t:
         return "Présentiel"
     return "Non précisé"
 
 def extract_start(text):
     if "asap" in text.lower():
         return "ASAP"
-    match = re.search(r"d[ée]marrage\s?:?\s?([\w\s]+)", text, re.IGNORECASE)
-    return match.group(1) if match else "Non précisé"
+    return "Non précisé"
 
 def extract_seniority(text):
     t = text.lower()
@@ -85,16 +90,6 @@ def extract_seniority(text):
     if match:
         return match.group(1) + " ans"
     return "Non précisée"
-
-def extract_mission(text):
-    match = re.search(r"chef de projet[^\n.!]*|développeur[^\n.!]*|data engineer[^\n.!]*|crm[^\n.!]*", text, re.IGNORECASE)
-    if match:
-        return match.group(0)
-    return "Mission IT"
-
-def extract_context(text):
-    match = re.search(r"migration[^\n.!]*|projet[^\n.!]*|refonte[^\n.!]*", text, re.IGNORECASE)
-    return match.group(0) if match else ""
 
 def extract_tags(text):
     tags = []
@@ -114,13 +109,42 @@ def extract_tags(text):
     return " ".join(tags) if tags else "#IT"
 
 # =========================
+# 🧠 OPENAI SYNTHÈSE
+# =========================
+
+async def summarize_ao(raw_text):
+
+    prompt = f"""
+Tu es un recruteur IT.
+
+Résume cette mission en 2 phrases maximum.
+Supprime le blabla marketing.
+Garde uniquement :
+- rôle
+- techno
+- contexte projet
+- responsabilité principale
+
+Mission :
+{raw_text}
+"""
+
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.2,
+    )
+
+    return response.choices[0].message.content.strip()
+
+# =========================
 # 🧱 BUILD MESSAGE
 # =========================
 
-def build_ao_message(raw_text):
+async def build_ao_message(raw_text):
 
-    mission = extract_mission(raw_text)
-    context = extract_context(raw_text)
+    summary = await summarize_ao(raw_text)
+
     tjm = extract_tjm(raw_text)
     duration = extract_duration(raw_text)
     location = extract_location(raw_text)
@@ -129,15 +153,9 @@ def build_ao_message(raw_text):
     seniority = extract_seniority(raw_text)
     tags = extract_tags(raw_text)
 
-    description = f"{mission}"
-    if context:
-        description += f" – {context}"
-
-    description = escape_md(description)
-
     return (
         f"📢 *Nouvelle opportunité*\n\n"
-        f"🧾 *Mission* : {description}\n"
+        f"📝 *Mission* : {escape_md(summary)}\n"
         f"📍 *Localisation* : {location}\n"
         f"💰 *TJM* : {tjm}\n"
         f"⏳ *Durée* : {duration}\n"
@@ -149,7 +167,7 @@ def build_ao_message(raw_text):
     )
 
 # =========================
-# 🤖 BOT LOGIC
+# 🤖 COMMANDES
 # =========================
 
 def is_private(update: Update):
@@ -160,9 +178,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Bot AO intelligent opérationnel ✅")
 
 async def new_ao(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_private(update):
-        return
-
     if update.effective_user.id not in MANAGERS:
         await update.message.reply_text("❌ Seuls les managers peuvent publier.")
         return
@@ -171,8 +186,6 @@ async def new_ao(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Envoie-moi l’AO brut ✍️")
 
 async def handle_ao(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_private(update):
-        return
 
     user_id = update.effective_user.id
 
@@ -181,7 +194,7 @@ async def handle_ao(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     WAITING_AO.remove(user_id)
 
-    message_text = build_ao_message(update.message.text)
+    message_text = await build_ao_message(update.message.text)
 
     keyboard = [[InlineKeyboardButton("✅ Je suis intéressé", callback_data="interested")]]
 
@@ -198,24 +211,23 @@ async def handle_ao(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "text": message_text
     }
 
-    await update.message.reply_text("✅ AO publiée dans le groupe.")
+    await update.message.reply_text("✅ AO publiée.")
 
 # =========================
 # 🔘 BOUTONS
 # =========================
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
     query = update.callback_query
     await query.answer()
     user = query.from_user
 
     if query.data == "interested":
+
         message = query.message
         message_id = message.message_id
-
         data = context.bot_data.get(message_id)
-        if not data:
-            return
 
         if user.id in data["interested_users"]:
             await context.bot.send_message(user.id, "⚠️ Déjà indiqué.")
@@ -246,33 +258,28 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     elif query.data.startswith("manager|"):
+
         parts = query.data.split("|")
         msg_id = int(parts[1])
         manager_id = int(parts[2])
-        manager_name = MANAGERS.get(manager_id, "Manager")
 
         data = context.bot_data.get(msg_id)
-        if not data:
-            return
-
         key = f"{user.id}_{msg_id}"
 
         if key in data["manager_map"]:
-            await context.bot.send_message(user.id, "⚠️ Manager déjà sélectionné.")
+            await context.bot.send_message(user.id, "⚠️ Déjà envoyé à ce manager.")
             return
 
         data["manager_map"][key] = manager_id
 
-        count = sum(1 for m in data["manager_map"].values() if m == manager_id)
-
         await context.bot.send_message(
             chat_id=manager_id,
-            text=f"📩 {user.full_name} est intéressé.\n👥 Intéressés pour toi : {count}"
+            text=f"📩 {user.full_name} est intéressé par une mission."
         )
 
         await context.bot.send_message(
             chat_id=user.id,
-            text=f"✅ Le manager {manager_name} a été notifié."
+            text="✅ Le manager a été notifié."
         )
 
 # =========================
@@ -286,5 +293,5 @@ app.add_handler(CommandHandler("new", new_ao))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_ao))
 app.add_handler(CallbackQueryHandler(button_handler))
 
-if __name__ == "__main__":
-    app.run_polling()
+app.run_polling()
+
