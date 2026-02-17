@@ -119,11 +119,17 @@ async def new_ao(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_ao(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_private(update):
+        print("❌ Message reçu hors privé")
         return
 
     user_id = update.effective_user.id
+    print("👤 USER:", user_id)
+    print("🧠 WAITING_AO:", WAITING_AO)
 
     if user_id not in WAITING_AO:
+        await update.message.reply_text(
+            "⚠️ Tu dois d'abord envoyer /new avant de coller l’AO."
+        )
         return
 
     WAITING_AO.remove(user_id)
@@ -241,3 +247,4 @@ app.add_handler(CallbackQueryHandler(button_handler))
 
 if __name__ == "__main__":
     app.run_polling()
+
