@@ -29,12 +29,53 @@ def escape_markdown(text):
 # 🔎 EXTRACTION DATA
 # =========================
 def extract_tjm(text):
-    match = re.search(r"(\d{3,4})\s?€?\s?/?\s?(j|jour)", text, re.IGNORECASE)
-    return match.group(1) + "€" if match else "Non précisé"
+    text = text.lower()
+
+    # range TJM : 600-650
+    match = re.search(r"(\d{3,4})\s?[-à]\s?(\d{3,4})\s?€", text)
+    if match:
+        return f"{match.group(1)}–{match.group(2)}€"
+
+    # TJM max
+    match = re.search(r"(\d{3,4})\s?€\s?(max|maximum)", text)
+    if match:
+        return f"{match.group(1)}€ max"
+
+    # TJM simple
+    match = re.search(r"(\d{3,4})\s?€?\s?/?\s?(j|jour)", text)
+    if match:
+        return f"{match.group(1)}€"
+
+    return "Non précisé"
 
 def extract_duration(text):
-    match = re.search(r"(\d+)\s?(mois|semaines)", text, re.IGNORECASE)
-    return match.group(0) if match else "Non précisée"
+    text = text.lower()
+
+    # durée minimum
+    match = re.search(r"(\d+)\s?mois\s?(minimum|min)", text)
+    if match:
+        return f"{match.group(1)} mois min"
+
+    # durée classique
+    match = re.search(r"(\d+)\s?(mois|semaines)", text)
+    if match:
+        return match.group(0)
+
+    return "Non précisée"
+
+def extract_location(text):
+    locations = [
+        "lille", "paris", "idf", "lyon", "marseille",
+        "toulouse", "nantes", "bordeaux", "rennes"
+    ]
+
+    t = text.lower()
+
+    for loc in locations:
+        if loc in t:
+            return loc.upper()
+
+    return "Non précisée"
 
 def extract_remote(text):
     t = text.lower()
@@ -112,15 +153,17 @@ def build_ao_message(raw_text):
     tjm = extract_tjm(raw_text)
     duration = extract_duration(raw_text)
     remote = extract_remote(raw_text)
+    location = extract_location(raw_text)
     tags = extract_tags(raw_text)
     summary = escape_markdown(smart_summary(raw_text))
 
     return (
         f"📢 *Nouvelle opportunité*\n\n"
+        f"📍 *Localisation* : {location}\n"
         f"💰 *TJM* : {tjm}\n"
         f"⏳ *Durée* : {duration}\n"
         f"🏠 *Mode* : {remote}\n\n"
-        f"📝 *Résumé* :\n{summary}\n\n"
+        f"📝 *Mission* :\n{summary}\n\n"
         f"{tags}"
     )
 
@@ -259,5 +302,6 @@ app.add_handler(CallbackQueryHandler(button_handler))
 
 if __name__ == "__main__":
     app.run_polling()
+
 
 
