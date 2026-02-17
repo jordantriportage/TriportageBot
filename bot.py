@@ -69,7 +69,13 @@ def extract_tags(text):
     if any(x in t for x in ["infra", "système", "réseau"]):
         tags.append("#Infra")
 
-    return " ".join(tags) if tags else "#Autre"
+    if not tags:
+        tags = ["#Autre"]
+
+    # 🔐 échappe les hashtags pour MarkdownV2
+    tags = [escape_markdown(tag) for tag in tags]
+
+    return " ".join(tags)
 
 def smart_summary(text, max_sentences=3):
     sentences = re.split(r'(?<=[.!?]) +', text)
@@ -226,3 +232,4 @@ app.add_handler(CallbackQueryHandler(button_handler))
 
 if __name__ == "__main__":
     app.run_polling()
+
