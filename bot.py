@@ -18,7 +18,7 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 MANAGERS = {
     8493969803: "Jordan DIOCHOT",
     6432931206: "Juan BERRIO",
-    333333333: "Houda EL BOUHDIDI",
+    8578401455: "Houda EL BOUHDIDI",
 }
 
 WAITING_AO = set()
@@ -327,6 +327,7 @@ app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_ao))
 app.add_handler(CallbackQueryHandler(button_handler))
 
 app.run_polling()
+
 
 
 
