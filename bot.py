@@ -190,20 +190,6 @@ async def new_ao(update: Update, context: ContextTypes.DEFAULT_TYPE):
     WAITING_AO.add(update.effective_user.id)
     await update.message.reply_text("Envoie-moi l’AO brut ✍️")
 
-async def get_group_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat = update.effective_chat
-
-    # On répond en privé au manager uniquement
-    await context.bot.send_message(
-        chat_id=update.effective_user.id,
-        text=f"GROUP_CHAT_ID = {chat.id}"
-    )
-
-    # On supprime le message dans le groupe pour que personne ne le voie
-    try:
-        await update.message.delete()
-    except:
-        pass
 
 async def handle_ao(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
@@ -339,9 +325,9 @@ app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("new", new_ao))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_ao))
 app.add_handler(CallbackQueryHandler(button_handler))
-app.add_handler(CommandHandler("getid", get_group_id))
 
 app.run_polling()
+
 
 
 
