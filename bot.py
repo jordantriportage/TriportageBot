@@ -3,7 +3,14 @@ import os
 import uuid
 import json
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    MessageHandler,
+    CallbackQueryHandler,
+    ContextTypes,
+    filters,
+)
 from openai import OpenAI
 
 # =========================
@@ -29,7 +36,9 @@ WAITING_AO = set()
 # =========================
 
 def escape_md(text: str):
-    escape_chars = r"_*[]()~`>#+-=|{}.!#"
+    if not text:
+        return ""
+    escape_chars = r"_*[]()~`>#+-=|{}.!\\"
     return re.sub(f"([{re.escape(escape_chars)}])", r"\\\1", str(text))
 
 # =========================
@@ -74,7 +83,7 @@ Mission :
             "remote": data.get("remote", "Non précisé"),
             "seniority": data.get("seniority", "Non précisée"),
             "start": data.get("start", "Non précisé"),
-            "tags": " ".join(data.get("tags", ["#IT"]))
+            "tags": " ".join(data.get("tags", ["#IT"])),
         }
 
     except Exception as e:
@@ -88,7 +97,7 @@ Mission :
             "remote": "Non précisé",
             "seniority": "Non précisée",
             "start": "Non précisé",
-            "tags": "#IT"
+            "tags": "#IT",
         }
 
 # =========================
@@ -101,14 +110,14 @@ async def build_ao_message(raw_text):
     reference = str(uuid.uuid4())[:8].upper()
 
     message = (
-        f"📢 *Nouvelle opportunité* \\- Ref : *{reference}*\n\n"
+        f"📢 *Nouvelle opportunité* \\- Ref : *{escape_md(reference)}*\n\n"
         f"📝 *Mission* : {escape_md(data['summary'])}\n"
-        f"📍 *Localisation* : {data['location']}\n"
-        f"💰 *TJM* : {data['tjm']}\n"
-        f"⏳ *Durée* : {data['duration']}\n"
-        f"🚀 *Démarrage* : {data['start']}\n"
-        f"🎯 *Séniorité* : {data['seniority']}\n"
-        f"🏠 *Remote* : {data['remote']}\n\n"
+        f"📍 *Localisation* : {escape_md(data['location'])}\n"
+        f"💰 *TJM* : {escape_md(data['tjm'])}\n"
+        f"⏳ *Durée* : {escape_md(data['duration'])}\n"
+        f"🚀 *Démarrage* : {escape_md(data['start'])}\n"
+        f"🎯 *Séniorité* : {escape_md(data['seniority'])}\n"
+        f"🏠 *Remote* : {escape_md(data['remote'])}\n\n"
         f"{escape_md(data['tags'])}\n\n"
         f"👀 *Intéressés* : 0"
     )
@@ -162,10 +171,10 @@ async def handle_ao(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "interested_users": [],
         "manager_map": {},
         "text": message_text,
-        "reference": reference
+        "reference": reference,
     }
 
-    await update.message.reply_text(f"✅ AO publiée \\- Ref : {reference}")
+    await update.message.reply_text(f"✅ AO publiée \\- Ref : {escape_md(reference)}", parse_mode="MarkdownV2")
 
 # =========================
 # 🔘 BOUTONS
@@ -193,14 +202,18 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         data["interested_users"].append(user.id)
         count = len(data["interested_users"])
 
-        new_text = re.sub(r"\*Intéressés\* : \d+", f"*Intéressés* : {count}", data["text"])
+        new_text = re.sub(
+            r"\*Intéressés\* : \d+",
+            f"*Intéressés* : {count}",
+            data["text"],
+        )
 
         keyboard = [[InlineKeyboardButton(f"✅ Je suis intéressé ({count})", callback_data="interested")]]
 
         await message.edit_text(
             text=new_text,
             parse_mode="MarkdownV2",
-            reply_markup=InlineKeyboardMarkup(keyboard)
+            reply_markup=InlineKeyboardMarkup(keyboard),
         )
 
         manager_keyboard = [
@@ -210,7 +223,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await context.bot.send_message(
             chat_id=user.id,
-            text=f"📌 Référence : {data['reference']}\nAvec quel manager es-tu en contact ?",
+            text=f"📌 Référence : {escape_md(data['reference'])}\nAvec quel manager es-tu en contact ?",
+            parse_mode="MarkdownV2",
             reply_markup=InlineKeyboardMarkup(manager_keyboard),
         )
 
@@ -232,29 +246,40 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         data["manager_map"][key] = manager_id
 
-        count_for_manager = sum(1 for m in data["manager_map"].values() if m == manager_id)
+        count_for_manager = sum(
+            1 for m in data["manager_map"].values() if m == manager_id
+        )
 
         await context.bot.send_message(
             chat_id=manager_id,
             text=(
                 f"📩 *Nouveau consultant intéressé*\n\n"
                 f"👤 Nom : {escape_md(user.full_name)}\n"
-                f"📌 Référence : {data['reference']}\n"
+                f"📌 Référence : {escape_md(data['reference'])}\n"
                 f"👥 Intéressés pour toi : {count_for_manager}"
             ),
-            parse_mode="MarkdownV2"
+            parse_mode="MarkdownV2",
         )
 
         await context.bot.send_message(
             chat_id=user.id,
-            text="✅ Le manager a été notifié."
+            text="✅ Le manager a été notifié.",
         )
+
+# =========================
+# ❗ ERROR HANDLER
+# =========================
+
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
+    print("Exception:", context.error)
 
 # =========================
 # 🚀 RUN
 # =========================
 
 app = ApplicationBuilder().token(TOKEN).build()
+
+app.add_error_handler(error_handler)
 
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("new", new_ao))
