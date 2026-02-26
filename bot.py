@@ -209,8 +209,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             await context.bot.send_message(
                 chat_id=user.id,
-                text=f"📌 Référence : {escape_md(reference)}\nAvec quel manager es-tu en contact ?",
-                parse_mode="MarkdownV2",
+                text=f"📌 Référence : {reference}\nAvec quel manager es-tu en contact ?",
                 reply_markup=InlineKeyboardMarkup(manager_keyboard),
             )
 
@@ -267,6 +266,7 @@ app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_ao))
 app.add_handler(CallbackQueryHandler(button_handler))
 
 app.run_polling()
+
 
 
 
