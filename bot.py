@@ -264,12 +264,10 @@ app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("new", new_ao))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_ao))
 
-app.add_handler(CallbackQueryHandler(button_handler, pattern="^interested\\|"))
-app.add_handler(CallbackQueryHandler(button_handler, pattern="^manager\\|"))
-
-app.add_handler(CallbackQueryHandler(lambda u, c: print("CALLBACK RECU")))
+app.add_handler(CallbackQueryHandler(button_handler))
 
 app.run_polling()
+
 
 
 
