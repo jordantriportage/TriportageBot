@@ -52,7 +52,7 @@ Tu es un recruteur IT.
 
 Analyse cette mission et retourne un JSON STRICT avec ces champs :
 
-summary : résumé en 2 phrases max
+summary : résumé en 4 phrases max
 tjm : TJM ou "Non précisé"
 duration : durée ou "Non précisée"
 location : ville ou "Non précisée"
@@ -265,3 +265,4 @@ app.add_handler(CallbackQueryHandler(button_handler, pattern="^interested\\|"))
 app.add_handler(CallbackQueryHandler(button_handler, pattern="^manager\\|"))
 
 app.run_polling()
+
