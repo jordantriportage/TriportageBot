@@ -160,7 +160,7 @@ async def handle_ao(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[
         InlineKeyboardButton(
             "✅ Je suis intéressé",
-            callback_data=f"interested|{reference}"
+            callback_data=f"i|{reference}"
         )
     ]]
 
@@ -187,7 +187,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     print("Bouton cliqué :", query.data, "par", user.id)
 
-    # Toujours répondre immédiatement pour stopper le loading
+    # Stop le loading Telegram
     try:
         await query.answer()
     except Exception as e:
@@ -198,12 +198,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # =========================
         # CONSULTANT CLIQUE INTERESSE
         # =========================
-        if query.data.startswith("interested|"):
+        if query.data.startswith("i|"):
 
             reference = query.data.split("|")[1]
 
             manager_keyboard = [
-                [InlineKeyboardButton(name, callback_data=f"manager|{reference}|{mid}")]
+                [InlineKeyboardButton(name, callback_data=f"m|{reference}|{mid}")]
                 for mid, name in MANAGERS.items()
             ]
 
@@ -219,7 +219,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # =========================
         # CHOIX MANAGER
         # =========================
-        elif query.data.startswith("manager|"):
+        elif query.data.startswith("m|"):
 
             parts = query.data.split("|")
             reference = parts[1]
@@ -267,6 +267,7 @@ app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_ao))
 app.add_handler(CallbackQueryHandler(button_handler))
 
 app.run_polling()
+
 
 
 
