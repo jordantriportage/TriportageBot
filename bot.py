@@ -188,83 +188,59 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if query.data == "interested":
 
-        message = query.message
-        message_id = message.message_id
-        data = context.bot_data.get(message_id)
+        try:
+            message = query.message
+            message_id = message.message_id
+            data = context.bot_data.get(message_id)
 
-        if not data:
-            return
+            if not data:
+                return
 
-        if user.id in data["interested_users"]:
-            await context.bot.send_message(user.id, "⚠️ Déjà indiqué.")
-            return
+            if user.id in data["interested_users"]:
+                await context.bot.send_message(user.id, "⚠️ Déjà indiqué.")
+                return
 
-        data["interested_users"].append(user.id)
-        count = len(data["interested_users"])
+            data["interested_users"].append(user.id)
+            count = len(data["interested_users"])
 
-        new_text = re.sub(
-            r"\*Intéressés\* : \d+",
-            f"*Intéressés* : {count}",
-            data["text"],
-        )
+            # 🔹 Reconstruit le message proprement (pas de regex)
+            new_text = re.sub(
+                r"👀 \*Intéressés\* : \d+",
+                f"👀 *Intéressés* : {count}",
+                data["text"]
+            )
 
-        keyboard = [[InlineKeyboardButton(f"✅ Je suis intéressé ({count})", callback_data="interested")]]
+            keyboard = [[InlineKeyboardButton(f"✅ Je suis intéressé ({count})", callback_data="interested")]]
 
-        await message.edit_text(
-            text=new_text,
-            parse_mode="MarkdownV2",
-            reply_markup=InlineKeyboardMarkup(keyboard),
-        )
+            await message.edit_text(
+                text=new_text,
+                parse_mode="MarkdownV2",
+                reply_markup=InlineKeyboardMarkup(keyboard),
+            )
 
-        manager_keyboard = [
-            [InlineKeyboardButton(name, callback_data=f"manager|{message_id}|{mid}")]
-            for mid, name in MANAGERS.items()
-        ]
+            # 🔹 Clavier managers
+            manager_keyboard = [
+                [InlineKeyboardButton(name, callback_data=f"manager|{message_id}|{mid}")]
+                for mid, name in MANAGERS.items()
+            ]
 
-        await context.bot.send_message(
-            chat_id=user.id,
-            text=f"📌 Référence : {escape_md(data['reference'])}\nAvec quel manager es-tu en contact ?",
-            parse_mode="MarkdownV2",
-            reply_markup=InlineKeyboardMarkup(manager_keyboard),
-        )
+            # 🔹 Envoi PV sécurisé
+            try:
+                await context.bot.send_message(
+                    chat_id=user.id,
+                    text=f"📌 Référence : {escape_md(data['reference'])}\nAvec quel manager es-tu en contact ?",
+                    parse_mode="MarkdownV2",
+                    reply_markup=InlineKeyboardMarkup(manager_keyboard),
+                )
+            except Exception as e:
+                print(f"Erreur envoi PV à {user.id} :", e)
+                await query.answer(
+                    text="⚠️ Lance d'abord le bot en privé avec /start",
+                    show_alert=True
+                )
 
-    elif query.data.startswith("manager|"):
-
-        parts = query.data.split("|")
-        msg_id = int(parts[1])
-        manager_id = int(parts[2])
-
-        data = context.bot_data.get(msg_id)
-        if not data:
-            return
-
-        key = f"{user.id}_{msg_id}"
-
-        if key in data["manager_map"]:
-            await context.bot.send_message(user.id, "⚠️ Déjà envoyé à ce manager.")
-            return
-
-        data["manager_map"][key] = manager_id
-
-        count_for_manager = sum(
-            1 for m in data["manager_map"].values() if m == manager_id
-        )
-
-        await context.bot.send_message(
-            chat_id=manager_id,
-            text=(
-                f"📩 *Nouveau consultant intéressé*\n\n"
-                f"👤 Nom : {escape_md(user.full_name)}\n"
-                f"📌 Référence : {escape_md(data['reference'])}\n"
-                f"👥 Intéressés pour toi : {count_for_manager}"
-            ),
-            parse_mode="MarkdownV2",
-        )
-
-        await context.bot.send_message(
-            chat_id=user.id,
-            text="✅ Le manager a été notifié.",
-        )
+        except Exception as e:
+            print("Erreur bouton interested :", e)
 
 # =========================
 # ❗ ERROR HANDLER
@@ -287,3 +263,4 @@ app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_ao))
 app.add_handler(CallbackQueryHandler(button_handler))
 
 app.run_polling()
+
