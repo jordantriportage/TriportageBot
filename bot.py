@@ -30,6 +30,7 @@ MANAGERS = {
 }
 
 WAITING_AO = set()
+AO_INTEREST = {}
 
 # =========================
 # 🔐 MARKDOWN SAFE
@@ -38,7 +39,7 @@ WAITING_AO = set()
 def escape_md(text: str):
     if not text:
         return ""
-    escape_chars = r"_*[]()~`>#+-=|{}.!\\"
+    escape_chars = r"_*[]()~`>#+-=|{}.!\\" 
     return re.sub(f"([{re.escape(escape_chars)}])", r"\\\1", str(text))
 
 # =========================
@@ -118,7 +119,7 @@ async def build_ao_message(raw_text):
         f"🚀 *Démarrage* : {escape_md(data['start'])}\n"
         f"🎯 *Séniorité* : {escape_md(data['seniority'])}\n"
         f"🏠 *Remote* : {escape_md(data['remote'])}\n\n"
-        f"{escape_md(data['tags'])}"
+        f"{data['tags']}"
     )
 
     return message, reference
@@ -157,6 +158,12 @@ async def handle_ao(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     message_text, reference = await build_ao_message(update.message.text)
 
+    AO_INTEREST[reference] = {
+        "users": [],
+        "message_id": None,
+        "text": message_text
+    }
+
     keyboard = [[
         InlineKeyboardButton(
             "✅ Je suis intéressé",
@@ -164,12 +171,14 @@ async def handle_ao(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     ]]
 
-    await context.bot.send_message(
+    sent_message = await context.bot.send_message(
         chat_id=GROUP_CHAT_ID,
-        text=message_text,
+        text=message_text + "\n\n👀 *Intéressés* : 0",
         parse_mode="MarkdownV2",
         reply_markup=InlineKeyboardMarkup(keyboard),
     )
+
+    AO_INTEREST[reference]["message_id"] = sent_message.message_id
 
     await update.message.reply_text(
         f"✅ AO publiée \\- Ref : {escape_md(reference)}",
@@ -187,7 +196,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     print("Bouton cliqué :", query.data, "par", user.id)
 
-    # Stop le loading Telegram
     try:
         await query.answer()
     except Exception as e:
@@ -201,6 +209,27 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if query.data.startswith("i|"):
 
             reference = query.data.split("|")[1]
+            data = AO_INTEREST.get(reference)
+
+            if data:
+                if user.id not in data["users"]:
+                    data["users"].append(user.id)
+
+                    count = len(data["users"])
+
+                    new_text = re.sub(
+                        r"\*Intéressés\* : \d+",
+                        f"*Intéressés* : {count}",
+                        data["text"] + "\n\n👀 *Intéressés* : 0",
+                    )
+
+                    await context.bot.edit_message_text(
+                        chat_id=GROUP_CHAT_ID,
+                        message_id=data["message_id"],
+                        text=new_text,
+                        parse_mode="MarkdownV2",
+                        reply_markup=query.message.reply_markup,
+                    )
 
             manager_keyboard = [
                 [InlineKeyboardButton(name, callback_data=f"m|{reference}|{mid}")]
@@ -262,13 +291,6 @@ app.add_error_handler(error_handler)
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("new", new_ao))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_ao))
-
 app.add_handler(CallbackQueryHandler(button_handler))
 
 app.run_polling()
-
-
-
-
-
-
