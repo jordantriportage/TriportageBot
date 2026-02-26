@@ -42,7 +42,7 @@ def escape_md(text: str):
     return re.sub(f"([{re.escape(escape_chars)}])", r"\\\1", str(text))
 
 # =========================
-# 🧠 OPENAI ANALYSE UNIQUE
+# 🧠 OPENAI ANALYSE
 # =========================
 
 async def analyze_ao_with_ai(raw_text):
@@ -52,14 +52,14 @@ Tu es un recruteur IT.
 
 Analyse cette mission et retourne un JSON STRICT avec ces champs :
 
-summary : résumé en 2 phrases max (role + techno + contexte)
+summary : résumé en 2 phrases max
 tjm : TJM ou "Non précisé"
 duration : durée ou "Non précisée"
 location : ville ou "Non précisée"
 remote : "100% remote", "Remote", "Hybride", "Présentiel" ou "Non précisé"
 seniority : niveau ou années d'expérience ou "Non précisée"
 start : date de démarrage ou "ASAP" ou "Non précisé"
-tags : liste de 2 à 4 hashtags sans accents (ex: ["#Data", "#AWS"])
+tags : liste de 2 à 4 hashtags sans accents
 
 Mission :
 {raw_text}
@@ -118,8 +118,7 @@ async def build_ao_message(raw_text):
         f"🚀 *Démarrage* : {escape_md(data['start'])}\n"
         f"🎯 *Séniorité* : {escape_md(data['seniority'])}\n"
         f"🏠 *Remote* : {escape_md(data['remote'])}\n\n"
-        f"{escape_md(data['tags'])}\n\n"
-        f"👀 *Intéressés* : 0"
+        f"{escape_md(data['tags'])}"
     )
 
     return message, reference
@@ -158,23 +157,24 @@ async def handle_ao(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     message_text, reference = await build_ao_message(update.message.text)
 
-    keyboard = [[InlineKeyboardButton("✅ Je suis intéressé", callback_data="interested")]]
+    keyboard = [[
+        InlineKeyboardButton(
+            "✅ Je suis intéressé",
+            callback_data=f"interested|{reference}"
+        )
+    ]]
 
-    sent_message = await context.bot.send_message(
+    await context.bot.send_message(
         chat_id=GROUP_CHAT_ID,
         text=message_text,
         parse_mode="MarkdownV2",
         reply_markup=InlineKeyboardMarkup(keyboard),
     )
 
-    context.bot_data[sent_message.message_id] = {
-        "interested_users": [],
-        "manager_map": {},
-        "text": message_text,
-        "reference": reference,
-    }
-
-    await update.message.reply_text(f"✅ AO publiée \\- Ref : {escape_md(reference)}", parse_mode="MarkdownV2")
+    await update.message.reply_text(
+        f"✅ AO publiée \\- Ref : {escape_md(reference)}",
+        parse_mode="MarkdownV2"
+    )
 
 # =========================
 # 🔘 BOUTONS
@@ -185,63 +185,62 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     user = query.from_user
+
     print("Bouton cliqué :", query.data, "par", user.id)
 
-    if query.data == "interested":
+    # =========================
+    # CONSULTANT CLIQUE "INTERESSE"
+    # =========================
+    if query.data.startswith("interested|"):
+
+        reference = query.data.split("|")[1]
+
+        manager_keyboard = [
+            [InlineKeyboardButton(name, callback_data=f"manager|{reference}|{mid}")]
+            for mid, name in MANAGERS.items()
+        ]
 
         try:
-            message = query.message
-            message_id = message.message_id
-            data = context.bot_data.get(message_id)
-
-            if not data:
-                return
-
-            if user.id in data["interested_users"]:
-                await context.bot.send_message(user.id, "⚠️ Déjà indiqué.")
-                return
-
-            data["interested_users"].append(user.id)
-            count = len(data["interested_users"])
-
-            # 🔹 Reconstruit le message proprement (pas de regex)
-            new_text = re.sub(
-                r"👀 \*Intéressés\* : \d+",
-                f"👀 *Intéressés* : {count}",
-                data["text"]
-            )
-
-            keyboard = [[InlineKeyboardButton(f"✅ Je suis intéressé ({count})", callback_data="interested")]]
-
-            await message.edit_text(
-                text=new_text,
+            await context.bot.send_message(
+                chat_id=user.id,
+                text=f"📌 Référence : {escape_md(reference)}\nAvec quel manager es-tu en contact ?",
                 parse_mode="MarkdownV2",
-                reply_markup=InlineKeyboardMarkup(keyboard),
+                reply_markup=InlineKeyboardMarkup(manager_keyboard),
+            )
+        except Exception as e:
+            print(f"Erreur envoi PV à {user.id} :", e)
+            await query.answer(
+                text="⚠️ Lance d'abord le bot en privé avec /start",
+                show_alert=True
             )
 
-            # 🔹 Clavier managers
-            manager_keyboard = [
-                [InlineKeyboardButton(name, callback_data=f"manager|{message_id}|{mid}")]
-                for mid, name in MANAGERS.items()
-            ]
+    # =========================
+    # CONSULTANT CHOISIT MANAGER
+    # =========================
+    elif query.data.startswith("manager|"):
 
-            # 🔹 Envoi PV sécurisé
-            try:
-                await context.bot.send_message(
-                    chat_id=user.id,
-                    text=f"📌 Référence : {escape_md(data['reference'])}\nAvec quel manager es-tu en contact ?",
-                    parse_mode="MarkdownV2",
-                    reply_markup=InlineKeyboardMarkup(manager_keyboard),
-                )
-            except Exception as e:
-                print(f"Erreur envoi PV à {user.id} :", e)
-                await query.answer(
-                    text="⚠️ Lance d'abord le bot en privé avec /start",
-                    show_alert=True
-                )
+        parts = query.data.split("|")
+        reference = parts[1]
+        manager_id = int(parts[2])
+
+        try:
+            await context.bot.send_message(
+                chat_id=manager_id,
+                text=(
+                    f"📩 *Nouveau consultant intéressé*\n\n"
+                    f"👤 Nom : {escape_md(user.full_name)}\n"
+                    f"📌 Référence : {escape_md(reference)}"
+                ),
+                parse_mode="MarkdownV2",
+            )
+
+            await context.bot.send_message(
+                chat_id=user.id,
+                text="✅ Le manager a été notifié.",
+            )
 
         except Exception as e:
-            print("Erreur bouton interested :", e)
+            print("Erreur notification manager :", e)
 
 # =========================
 # ❗ ERROR HANDLER
@@ -261,9 +260,8 @@ app.add_error_handler(error_handler)
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("new", new_ao))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_ao))
-app.add_handler(CallbackQueryHandler(button_handler, pattern="^interested$"))
+
+app.add_handler(CallbackQueryHandler(button_handler, pattern="^interested\\|"))
 app.add_handler(CallbackQueryHandler(button_handler, pattern="^manager\\|"))
 
 app.run_polling()
-
-
