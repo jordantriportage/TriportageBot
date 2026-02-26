@@ -185,6 +185,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     user = query.from_user
+    print("Bouton cliqué :", query.data, "par", user.id)
 
     if query.data == "interested":
 
@@ -260,7 +261,9 @@ app.add_error_handler(error_handler)
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("new", new_ao))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_ao))
-app.add_handler(CallbackQueryHandler(button_handler))
+app.add_handler(CallbackQueryHandler(button_handler, pattern="^interested$"))
+app.add_handler(CallbackQueryHandler(button_handler, pattern="^manager\\|"))
 
 app.run_polling()
+
 
