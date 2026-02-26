@@ -183,47 +183,48 @@ async def handle_ao(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     query = update.callback_query
-    await query.answer()
     user = query.from_user
 
     print("Bouton cliqué :", query.data, "par", user.id)
 
-    # =========================
-    # CONSULTANT CLIQUE "INTERESSE"
-    # =========================
-    if query.data.startswith("interested|"):
+    # Toujours répondre immédiatement pour stopper le loading
+    try:
+        await query.answer()
+    except Exception as e:
+        print("Erreur query.answer():", e)
 
-        reference = query.data.split("|")[1]
+    try:
 
-        manager_keyboard = [
-            [InlineKeyboardButton(name, callback_data=f"manager|{reference}|{mid}")]
-            for mid, name in MANAGERS.items()
-        ]
+        # =========================
+        # CONSULTANT CLIQUE INTERESSE
+        # =========================
+        if query.data.startswith("interested|"):
 
-        try:
+            reference = query.data.split("|")[1]
+
+            manager_keyboard = [
+                [InlineKeyboardButton(name, callback_data=f"manager|{reference}|{mid}")]
+                for mid, name in MANAGERS.items()
+            ]
+
             await context.bot.send_message(
                 chat_id=user.id,
                 text=f"📌 Référence : {escape_md(reference)}\nAvec quel manager es-tu en contact ?",
                 parse_mode="MarkdownV2",
                 reply_markup=InlineKeyboardMarkup(manager_keyboard),
             )
-        except Exception as e:
-            print(f"Erreur envoi PV à {user.id} :", e)
-            await query.answer(
-                text="⚠️ Lance d'abord le bot en privé avec /start",
-                show_alert=True
-            )
 
-    # =========================
-    # CONSULTANT CHOISIT MANAGER
-    # =========================
-    elif query.data.startswith("manager|"):
+            print("PV envoyé au consultant")
 
-        parts = query.data.split("|")
-        reference = parts[1]
-        manager_id = int(parts[2])
+        # =========================
+        # CHOIX MANAGER
+        # =========================
+        elif query.data.startswith("manager|"):
 
-        try:
+            parts = query.data.split("|")
+            reference = parts[1]
+            manager_id = int(parts[2])
+
             await context.bot.send_message(
                 chat_id=manager_id,
                 text=(
@@ -239,8 +240,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 text="✅ Le manager a été notifié.",
             )
 
-        except Exception as e:
-            print("Erreur notification manager :", e)
+            print("Manager notifié")
+
+    except Exception as e:
+        print("ERREUR DANS BUTTON_HANDLER :", e)
 
 # =========================
 # ❗ ERROR HANDLER
@@ -265,4 +268,5 @@ app.add_handler(CallbackQueryHandler(button_handler, pattern="^interested\\|"))
 app.add_handler(CallbackQueryHandler(button_handler, pattern="^manager\\|"))
 
 app.run_polling()
+
 
